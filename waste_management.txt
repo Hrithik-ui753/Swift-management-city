@@ -1,0 +1,398 @@
+#include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <stdlib.h>
+
+#define MAX_USERS 10
+#define MAX_COMPLAINTS 10
+#define MAX_LOCATIONS 5
+
+typedef struct {
+    int id;
+    char name[20], password[20];
+    int ward, points;
+} User;
+
+typedef struct {
+    int id, user_id;
+    char issue[50], status[15], location[20], type[30];
+    int ward;
+    float dry_percent, wet_percent, hazard_percent;
+    char solution[100];
+    int est_minutes;
+} Complaint;
+
+User users[MAX_USERS];
+Complaint complaints[MAX_COMPLAINTS];
+int user_count = 0, complaint_count = 0;
+const char *locations[] = {"Ameerpet", "Miyapur", "Koti", "LB Nagar", "Jubilee Hills"};
+const char *swiftcity_offices[] = {"Ameerpet: 040-23456789", "Miyapur: 040-23456790", 
+                                 "Koti: 040-23456791", "LB Nagar: 040-23456792", 
+                                 "Jubilee Hills: 040-23456793"};
+const char *complaint_types[] = {"Waste", "Sewage", "Current and Water Problems", "Other", 
+                                "Irregular Water Supply", "Mosquitoes and Diseases", 
+                                "Corruption and Negligence", "Drainage and Flooding", 
+                                "Traffic and Parking Chaos"};
+const char *solutions[] = {
+    "SwiftCity will collect waste and maintain bins",
+    "SwiftCity will clear and fix sewage lines",
+    "SwiftCity will address electrical and water issues promptly",
+    "SwiftCity will investigate and resolve general issues",
+    "SwiftCity will restore water supply infrastructure",
+    "SwiftCity will fumigate and control vectors",
+    "SwiftCity will probe corruption and enforce rules",
+    "SwiftCity will unclog drains and manage floods",
+    "SwiftCity will organize traffic and parking"
+};
+const int est_minutes[] = {5, 45, 15, 60, 150, 60, 180, 120, 30}; // Minutes: 5 to 180
+
+// Function prototype
+void user_menu(int user_id);
+
+void load_users() {
+    FILE *file = fopen("users.txt", "r");
+    if (file) {
+        while (user_count < MAX_USERS && 
+               fscanf(file, "%d %19s %19s %d %d", 
+                      &users[user_count].id, users[user_count].name, 
+                      users[user_count].password, &users[user_count].ward, 
+                      &users[user_count].points) == 5) {
+            user_count++;
+        }
+        fclose(file);
+    }
+}
+
+void save_users() {
+    FILE *file = fopen("users.txt", "w");
+    for (int i = 0; i < user_count; i++) {
+        fprintf(file, "%d %s %s %d %d\n", 
+                users[i].id, users[i].name, users[i].password, 
+                users[i].ward, users[i].points);
+    }
+    fclose(file);
+}
+
+void load_complaints() {
+    FILE *file = fopen("complaints.txt", "r");
+    if (file) {
+        while (complaint_count < MAX_COMPLAINTS &&
+               fscanf(file, "%d %d \"%49[^\"]\" \"%14[^\"]\" \"%19[^\"]\" %d \"%29[^\"]\" %f %f %f \"%99[^\"]\" %d",
+                      &complaints[complaint_count].id, &complaints[complaint_count].user_id,
+                      complaints[complaint_count].issue, complaints[complaint_count].status,
+                      complaints[complaint_count].location, &complaints[complaint_count].ward,
+                      complaints[complaint_count].type,
+                      &complaints[complaint_count].dry_percent, &complaints[complaint_count].wet_percent,
+                      &complaints[complaint_count].hazard_percent, complaints[complaint_count].solution,
+                      &complaints[complaint_count].est_minutes) == 12) {
+            complaint_count++;
+        }
+        fclose(file);
+    }
+}
+
+void save_complaints() {
+    FILE *file = fopen("complaints.txt", "w");
+    for (int i = 0; i < complaint_count; i++) {
+        fprintf(file, "%d %d \"%s\" \"%s\" \"%s\" %d \"%s\" %.2f %.2f %.2f \"%s\" %d\n",
+                complaints[i].id, complaints[i].user_id, complaints[i].issue,
+                complaints[i].status, complaints[i].location, complaints[i].ward,
+                complaints[i].type, complaints[i].dry_percent, complaints[i].wet_percent, 
+                complaints[i].hazard_percent, complaints[i].solution, 
+                complaints[i].est_minutes);
+    }
+    fclose(file);
+}
+
+void create_account() {
+    if (user_count >= MAX_USERS) {
+        puts("User limit reached!");
+        return;
+    }
+    int id, ward;
+    char name[20], password[20];
+    printf("Enter ID: ");
+    if (scanf("%d", &id) != 1) {
+        getchar();
+        puts("Invalid ID!");
+        return;
+    }
+    getchar();
+    for (int i = 0; i < user_count; i++) {
+        if (users[i].id == id) {
+            puts("ID already exists!");
+            return;
+        }
+    }
+    printf("Enter name: ");
+    fgets(name, sizeof(name), stdin);
+    name[strcspn(name, "\n")] = 0;
+    printf("Enter password: ");
+    fgets(password, sizeof(password), stdin);
+    password[strcspn(password, "\n")] = 0;
+    printf("Enter ward (1-100): ");
+    if (scanf("%d", &ward) != 1 || ward < 1 || ward > 100) {
+        getchar();
+        puts("Invalid ward number!");
+        return;
+    }
+    getchar();
+    users[user_count].id = id;
+    strncpy(users[user_count].name, name, sizeof(users[user_count].name) - 1);
+    strncpy(users[user_count].password, password, sizeof(users[user_count].password) - 1);
+    users[user_count].ward = ward;
+    users[user_count].points = 0;
+    user_count++;
+    save_users();
+    printf("Welcome, %s! Account created.\n", name);
+}
+
+void login() {
+    puts("Welcome to SwiftCity Civic System!");
+    int choice, id;
+    char password[20];
+    while (1) {
+        printf("\n1. Login 2. Create Account 3. Exit\nChoice: ");
+        if (scanf("%d", &choice) != 1) {
+            getchar();
+            puts("Invalid choice!");
+            continue;
+        }
+        getchar();
+        if (choice == 2) {
+            create_account();
+        } else if (choice == 3) {
+            puts("Thank you for using SwiftCity!");
+            exit(0);
+        } else if (choice == 1) {
+            printf("Enter ID: ");
+            if (scanf("%d", &id) != 1) {
+                getchar();
+                puts("Invalid ID!");
+                continue;
+            }
+            getchar();
+            printf("Enter Password: ");
+            fgets(password, sizeof(password), stdin);
+            password[strcspn(password, "\n")] = 0;
+            for (int i = 0; i < user_count; i++) {
+                if (users[i].id == id && strcmp(users[i].password, password) == 0) {
+                    printf("Welcome back, %s!\n", users[i].name);
+                    user_menu(id);
+                    break;
+                }
+                if (i == user_count - 1) puts("Invalid credentials!");
+            }
+        } else {
+            puts("Invalid choice!");
+        }
+    }
+}
+
+void report_complaint(int user_id) {
+    if (complaint_count >= MAX_COMPLAINTS) {
+        puts("Complaint limit reached!");
+        return;
+    }
+    char issue[50], location[20], type[30];
+    int ward;
+    float dry_percent = 0, wet_percent = 0, hazard_percent = 0;
+    puts("Complaint types:");
+    for (int i = 0; i < 9; i++) printf("%d. %s\n", i + 1, complaint_types[i]);
+    printf("Choose type (1-9): ");
+    int type_choice;
+    if (scanf("%d", &type_choice) != 1 || type_choice < 1 || type_choice > 9) {
+        getchar();
+        puts("Invalid type!");
+        return;
+    }
+    getchar();
+    strncpy(type, complaint_types[type_choice - 1], sizeof(type) - 1);
+    puts("Locations:");
+    for (int i = 0; i < MAX_LOCATIONS; i++) printf("%d. %s\n", i + 1, locations[i]);
+    printf("Choose location (1-%d): ", MAX_LOCATIONS);
+    int loc_choice;
+    if (scanf("%d", &loc_choice) != 1 || loc_choice < 1 || loc_choice > MAX_LOCATIONS) {
+        getchar();
+        puts("Invalid location!");
+        return;
+    }
+    getchar();
+    strncpy(location, locations[loc_choice - 1], sizeof(location) - 1);
+    printf("Enter ward number for %s (1-100): ", location);
+    if (scanf("%d", &ward) != 1 || ward < 1 || ward > 100) {
+        getchar();
+        puts("Invalid ward number!");
+        return;
+    }
+    getchar();
+    printf("Enter complaint description: ");
+    fgets(issue, sizeof(issue), stdin);
+    issue[strcspn(issue, "\n")] = 0;
+    if (type_choice == 1) {
+        printf("Dry waste %% (0-100): ");
+        if (scanf("%f", &dry_percent) != 1 || dry_percent < 0 || dry_percent > 100) {
+            getchar();
+            puts("Invalid percentage!");
+            return;
+        }
+        printf("Wet waste %% (0-100): ");
+        if (scanf("%f", &wet_percent) != 1 || wet_percent < 0 || wet_percent > 100) {
+            getchar();
+            puts("Invalid percentage!");
+            return;
+        }
+        printf("Hazardous waste %% (0-100): ");
+        if (scanf("%f", &hazard_percent) != 1 || hazard_percent < 0 || hazard_percent > 100) {
+            getchar();
+            puts("Invalid percentage!");
+            return;
+        }
+        getchar();
+    }
+    complaints[complaint_count].id = complaint_count + 1;
+    complaints[complaint_count].user_id = user_id;
+    strncpy(complaints[complaint_count].issue, issue, sizeof(complaints[complaint_count].issue) - 1);
+    strncpy(complaints[complaint_count].status, "Pending", sizeof(complaints[complaint_count].status) - 1);
+    strncpy(complaints[complaint_count].location, location, sizeof(complaints[complaint_count].location) - 1);
+    complaints[complaint_count].ward = ward;
+    strncpy(complaints[complaint_count].type, type, sizeof(complaints[complaint_count].type) - 1);
+    complaints[complaint_count].dry_percent = dry_percent;
+    complaints[complaint_count].wet_percent = wet_percent;
+    complaints[complaint_count].hazard_percent = hazard_percent;
+    strncpy(complaints[complaint_count].solution, solutions[type_choice - 1], sizeof(complaints[complaint_count].solution) - 1);
+    complaints[complaint_count].est_minutes = est_minutes[type_choice - 1];
+    complaint_count++;
+    for (int i = 0; i < user_count; i++) {
+        if (users[i].id == user_id) {
+            users[i].points += 10;
+            save_users();
+            break;
+        }
+    }
+    save_complaints();
+    printf("Complaint filed. Solution: %s. Estimated time: %d minutes. Earned 10 points.\n", 
+           solutions[type_choice - 1], est_minutes[type_choice - 1]);
+}
+
+void track_solution(int user_id) {
+    int found = 0;
+    for (int i = 0; i < complaint_count; i++) {
+        if (complaints[i].user_id == user_id && strcmp(complaints[i].status, "Completed") != 0) {
+            printf("Complaint ID:%d Type:%s Location:%s Ward:%d Status:%s\n", 
+                   complaints[i].id, complaints[i].type, complaints[i].location, 
+                   complaints[i].ward, complaints[i].status);
+            printf("Solution: %s. Estimated time: %d minutes.\n", 
+                   complaints[i].solution, complaints[i].est_minutes);
+            found = 1;
+        }
+    }
+    if (!found) puts("No active complaints to track.");
+}
+
+void update_complaint(int user_id) {
+    int id;
+    char status[15];
+    printf("Enter complaint ID: ");
+    if (scanf("%d", &id) != 1) {
+        getchar();
+        puts("Invalid ID!");
+        return;
+    }
+    getchar();
+    printf("Enter status (Pending/On-Going/Completed/Report-Unresolved): ");
+    fgets(status, sizeof(status), stdin);
+    status[strcspn(status, "\n")] = 0;
+    if (strcmp(status, "Pending") != 0 && strcmp(status, "On-Going") != 0 && 
+        strcmp(status, "Completed") != 0 && strcmp(status, "Report-Unresolved") != 0) {
+        puts("Invalid status!");
+        return;
+    }
+    for (int i = 0; i < complaint_count; i++) {
+        if (complaints[i].id == id && complaints[i].user_id == user_id) {
+            strncpy(complaints[i].status, status, sizeof(complaints[i].status) - 1);
+            if (strcmp(status, "Completed") == 0 || strcmp(status, "Report-Unresolved") == 0) {
+                for (int j = 0; j < user_count; j++) {
+                    if (users[j].id == user_id) {
+                        users[j].points += 5;
+                        save_users();
+                        break;
+                    }
+                }
+            }
+            save_complaints();
+            puts("Status updated. Earned 5 points.");
+            return;
+        }
+    }
+    puts("Complaint not found or not yours.");
+}
+
+void view_complaints(int user_id) {
+    int found = 0;
+    for (int i = 0; i < complaint_count; i++) {
+        if (complaints[i].user_id == user_id) {
+            printf("ID:%d Type:%s Issue:%s Status:%s Location:%s Ward:%d", 
+                   complaints[i].id, complaints[i].type, complaints[i].issue,
+                   complaints[i].status, complaints[i].location, complaints[i].ward);
+            if (strcmp(complaints[i].type, "Waste") == 0) {
+                printf(" Dry:%.0f%% Wet:%.0f%% Hazard:%.0f%%", 
+                       complaints[i].dry_percent, complaints[i].wet_percent, 
+                       complaints[i].hazard_percent);
+            }
+            printf("\nSolution: %s. Estimated time: %d minutes.\n", 
+                   complaints[i].solution, complaints[i].est_minutes);
+            found = 1;
+        }
+    }
+    if (!found) puts("No complaints found.");
+}
+
+void view_points(int user_id) {
+    for (int i = 0; i < user_count; i++) {
+        if (users[i].id == user_id) {
+            printf("Points: %d\nRewards:\n1. Eco-Bag (50 points)\n2. Water Bottle (100 points)\n3. Gift Voucher (200 points)\n", 
+                   users[i].points);
+            return;
+        }
+    }
+}
+
+void swiftcity_details() {
+    puts("SwiftCity Contact Details:");
+    for (int i = 0; i < MAX_LOCATIONS; i++) {
+        puts(swiftcity_offices[i]);
+    }
+}
+
+void user_menu(int user_id) {
+    int choice;
+    while (1) {
+        printf("\nMenu:\n1. File Complaint\n2. View Complaints\n3. Update Status\n"
+               "4. View Points\n5. Track Solution\n6. SwiftCity Contacts\n7. Back\nChoice: ");
+        if (scanf("%d", &choice) != 1) {
+            getchar();
+            puts("Invalid choice!");
+            continue;
+        }
+        getchar();
+        switch (choice) {
+            case 1: report_complaint(user_id); break;
+            case 2: view_complaints(user_id); break;
+            case 3: update_complaint(user_id); break;
+            case 4: view_points(user_id); break;
+            case 5: track_solution(user_id); break;
+            case 6: swiftcity_details(); break;
+            case 7: return;
+            default: puts("Invalid choice!");
+        }
+    }
+}
+
+int main() {
+    srand(time(NULL));
+    load_users();
+    load_complaints();
+    login();
+    return 0;
+}
